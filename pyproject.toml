@@ -15,17 +15,8 @@ dependencies = [
     "langchain-text-splitters>=1.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-]
-
 [project.scripts]
-rag-tutorial = "rag_tutorial.main:main"
+askswift = "rag_tutorial.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]

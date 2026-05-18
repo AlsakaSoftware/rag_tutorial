@@ -11,20 +11,14 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the project in editable mode with development tools:
+Install the project in editable mode:
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e .
 ```
 
-Run the example command:
+Start the chat:
 
 ```bash
-rag-tutorial
-```
-
-Run tests:
-
-```bash
-pytest
+askswift
 ```

@@ -3,10 +3,14 @@ import os
 from collections.abc import Iterable
 from typing import Any
 
+try:
+    import readline  # noqa: F401
+except ImportError:
+    pass
+
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -18,19 +22,13 @@ EMBEDDING_MODEL = "text-embedding-3-large"
 CHAT_MODEL = "gpt-4.1-mini"
 RESULT_COUNT = 4
 
-PROMPT_TEMPLATE = """
-    Answer the question based only on the following context:
-    {context}
-
-    ---
-
-    Answer the question based on the above context: {question}
-"""
+SYSTEM_PROMPT = """You are AskSwift, a helpful Swift documentation assistant.
+Use the Swift documentation excerpts to ground your answers.
+If the excerpts do not contain enough information, say so instead of guessing."""
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("question_text", type=str, help="Ask me anything about Swift.")
     return parser.parse_args()
 
 
@@ -65,24 +63,7 @@ def get_vector_store() -> Chroma:
     )
 
 
-def answer_question(query_text: str) -> tuple[Any, list[str | None]]:
-    db = get_vector_store()
-    results = db.similarity_search_with_relevance_scores(
-        query_text,
-        k=RESULT_COUNT,
-    )
-
-    context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
-    prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-    prompt = prompt_template.format(context=context_text, question=query_text)
-
-    model = ChatOpenAI(model=CHAT_MODEL)
-    response = model.invoke(prompt)
-    sources = [doc.metadata.get("source", None) for doc, _score in results]
-    return response, sources
-
-
-def format_response(response: Any, sources: Iterable[str | None]) -> str:
+def response_text(response: Any) -> str:
     content = getattr(response, "content", response)
 
     if isinstance(content, list):
@@ -92,9 +73,13 @@ def format_response(response: Any, sources: Iterable[str | None]) -> str:
                 parts.append(str(item.get("text") or item.get("content") or item))
             else:
                 parts.append(str(item))
-        content = "\n".join(parts)
+        return "\n".join(parts)
 
-    lines = [line.rstrip() for line in str(content).strip().splitlines()]
+    return str(content)
+
+
+def format_response(response: Any, sources: Iterable[str | None]) -> str:
+    lines = [line.rstrip() for line in response_text(response).strip().splitlines()]
     clean_lines = []
     blank_count = 0
 
@@ -125,10 +110,49 @@ def format_response(response: Any, sources: Iterable[str | None]) -> str:
     return f"Answer\n------\n{answer}\n\nSources\n-------\n{formatted_sources}"
 
 
+def chat() -> None:
+    db = get_vector_store()
+    transcript = SYSTEM_PROMPT
+
+    print("Swift RAG chat. Type /exit to quit or /clear to reset history.")
+
+    while True:
+        question = input("\nYou: ").strip()
+
+        if not question:
+            continue
+
+        if question == "/exit":
+            break
+
+        if question == "/clear":
+            transcript = SYSTEM_PROMPT
+            print("History cleared.")
+            continue
+
+        results = db.similarity_search_with_score(question, k=RESULT_COUNT)
+        context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
+        prompt = (
+            f"{transcript}\n\n"
+            f"Swift documentation excerpts for the next user question:\n"
+            f"{context_text}\n\n"
+            f"User: {question}\n"
+            f"Assistant:"
+        )
+
+        response = ChatOpenAI(model=CHAT_MODEL).invoke(prompt)
+        sources = [doc.metadata.get("source", None) for doc, _score in results]
+        answer = response_text(response).strip()
+
+        print()
+        print(format_response(answer, sources))
+
+        transcript += f"\n\nUser: {question}\nAssistant: {answer}"
+
+
 def main() -> None:
-    args = parse_args()
-    response, sources = answer_question(args.question_text)
-    print(format_response(response, sources))
+    parse_args()
+    chat()
 
 
 if __name__ == "__main__":
