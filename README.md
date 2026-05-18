@@ -1,24 +1,25 @@
-# RAG Tutorial
+# AskSwift
 
-A small Python project for experimenting with retrieval-augmented generation workflows.
+A local RAG chat CLI for asking questions about the Swift documentation.
 
 ## Setup
 
-Create and activate a virtual environment:
+Install [Ollama](https://ollama.com/download) first.
+
+Then run:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+./scripts/setup.sh
 ```
 
-Install the project in editable mode:
+This creates a virtual environment, installs the Python package, and pulls the
+local Ollama models:
 
-```bash
-python -m pip install -e .
-```
+- `embeddinggemma`
+- `qwen2.5-coder:3b`
 
 Start the chat:
 
 ```bash
-askswift
+./askswift
 ```

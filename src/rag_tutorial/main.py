@@ -1,5 +1,4 @@
 import argparse
-import os
 from collections.abc import Iterable
 from typing import Any
 
@@ -11,16 +10,16 @@ except ImportError:
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
-CHROMA_PATH = "chroma"
+CHROMA_PATH = "chroma-local"
 DOCS_PATH = "swift-book-documentation"
 DOCS_GLOB = "**/*.md"
-EMBEDDING_MODEL = "text-embedding-3-large"
-CHAT_MODEL = "gpt-4.1-mini"
-RESULT_COUNT = 4
+EMBEDDING_MODEL = "embeddinggemma"
+CHAT_MODEL = "qwen2.5-coder:3b"
+RESULT_COUNT = 2
 
 SYSTEM_PROMPT = """You are AskSwift, a helpful Swift documentation assistant.
 Use the Swift documentation excerpts to ground your answers.
@@ -33,14 +32,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_vector_store() -> Chroma:
-    embedding_function = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+    embedding_function = OllamaEmbeddings(model=EMBEDDING_MODEL)
+    db = Chroma(
+        persist_directory=CHROMA_PATH,
+        embedding_function=embedding_function,
+    )
 
-    if os.path.exists(CHROMA_PATH):
-        return Chroma(
-            persist_directory=CHROMA_PATH,
-            embedding_function=embedding_function,
-        )
+    if db._collection.count() > 0:
+        return db
 
+    print("Building local Swift documentation index. This may take a few minutes.")
     loader = DirectoryLoader(
         DOCS_PATH,
         glob=DOCS_GLOB,
@@ -56,11 +57,8 @@ def get_vector_store() -> Chroma:
     )
     chunks = splitter.split_documents(documents)
 
-    return Chroma.from_documents(
-        documents=chunks,
-        embedding=embedding_function,
-        persist_directory=CHROMA_PATH,
-    )
+    db.add_documents(chunks)
+    return db
 
 
 def response_text(response: Any) -> str:
@@ -140,7 +138,7 @@ def chat() -> None:
             f"Assistant:"
         )
 
-        response = ChatOpenAI(model=CHAT_MODEL).invoke(prompt)
+        response = ChatOllama(model=CHAT_MODEL).invoke(prompt)
         sources = [doc.metadata.get("source", None) for doc, _score in results]
         answer = response_text(response).strip()
 

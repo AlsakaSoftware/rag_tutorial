@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ ! -x ".venv/bin/askswift" ]; then
+  echo "AskSwift is not installed yet. Run ./scripts/setup.sh first."
+  exit 1
+fi
+
+exec .venv/bin/askswift "$@"
