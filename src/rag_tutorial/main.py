@@ -49,6 +49,11 @@ def get_vector_store() -> Chroma:
         loader_kwargs={"encoding": "utf-8"},
     )
     documents = loader.load()
+    if not documents:
+        raise RuntimeError(
+            f"No Markdown files found in {DOCS_PATH}. "
+            "Make sure the Swift documentation files are included in the repo."
+        )
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
@@ -56,6 +61,8 @@ def get_vector_store() -> Chroma:
         add_start_index=True,
     )
     chunks = splitter.split_documents(documents)
+    if not chunks:
+        raise RuntimeError(f"No document chunks were created from {DOCS_PATH}.")
 
     db.add_documents(chunks)
     return db
